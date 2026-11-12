@@ -1,0 +1,11 @@
+build/
+*.o
+*.obj
+*.exe
+*.mex*
+*.slxc
+slprj/
+*.asv
+*.log
+*.csv
+.DS_Store
