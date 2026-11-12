@@ -1,0 +1,26 @@
+9.11.0.1769968 (R2021b)
+       Name: 'Simulink'
+    Version: '10.4'
+    Release: '(R2021b)'
+       Date: '14-May-2021'
+
+  CompilerConfiguration - 属性:
+
+             Name: 'MinGW64 Compiler (C)'
+     Manufacturer: 'GNU'
+         Language: 'C'
+          Version: '6.3.0'
+         Location: 'D:\MULT_PFC_DEFINE\toolchains\mingw64'
+        ShortName: 'mingw64'
+         Priority: 'E'
+          Details: [1x1 mex.CompilerConfigurationDetails]
+       LinkerName: 'D:\MULT_PFC_DEFINE\toolchains\mingw64\bin\gcc'
+    LinkerVersion: ''
+           MexOpt: 'C:\Users\yangs\AppData\Roaming\MathWorks\MATLAB\R2021b\mex_C_win64.xml'
+
+MEX 配置为使用 'MinGW64 Compiler (C)' 以进行 C 语言编译。
+使用 'MinGW64 Compiler (C)' 编译。
+MEX 已成功完成。
+PWM: TBPRD=1514, period=1515 ticks, f=66006.600660066 Hz, error=0.010001%
+count: 25 committed events, 25 solver times, 0.752210 s wall; 60us / 10ns reference: 6000 ticks
+M1 PASS: count/PRD/CMPA/SOCA; shadow before/at/after ZERO; CMPA bounds; fractional-ns trip/latch/rearm/priority.

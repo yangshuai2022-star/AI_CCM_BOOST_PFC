@@ -14,7 +14,8 @@ subplot(3,1,3);
 labels = {'ZERO','SOCA','ACQ_END','EOC','ADC_INTERRUPT', ...
           'ISR_ENTRY','SHADOW_WRITE','SHADOW_LOAD','CMPA'};
 for k = 1:length(labels)
-    ix = strcmp(T.event, labels{k});
+    kinds = [0 3 4 5 6 7 9 1 2];
+    ix = T.event == kinds(k);
     plot(t_us(ix), k*ones(sum(ix),1), '.'); hold on;
 end
 hold off; set(gca, 'YTick', 1:length(labels), 'YTickLabel', labels);

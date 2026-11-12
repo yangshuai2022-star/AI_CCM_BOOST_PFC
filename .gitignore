@@ -9,3 +9,5 @@ slprj/
 *.log
 *.csv
 .DS_Store
+evidence/**/*_trace.mat
+!evidence/**/*.csv
