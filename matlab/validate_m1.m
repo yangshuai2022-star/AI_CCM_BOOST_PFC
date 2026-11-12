@@ -14,6 +14,10 @@ fprintf('count: %d committed events, %d solver times, %.6f s wall; 60us / 10ns r
 assert(numel(out.tout)<800,'Solver traverses TBCLK grid');
 tr=out.trace; rises=tr.time([true;diff(tr.signals.values(:,1))>0]);
 assert(max(abs(rises(1:4)-(0:3)'*period))<1e-12);
+prdt=e.time_s(e.kind==15);
+for j=1:numel(prdt)
+ [~,ix]=min(abs(tr.time-prdt(j)));assert(tr.signals.values(ix,2)==1514);
+end
 f=figure('Visible','off');
 subplot(2,1,1);stairs(tr.time*1e6,tr.signals.values(:,1));ylabel('PWM');grid on;
 subplot(2,1,2);stairs(tr.time*1e6,tr.signals.values(:,2));ylabel('TBCTR');xlabel('time (us)');grid on;
@@ -40,6 +44,14 @@ assert(~any(x.kind==10 & x.data==1 & x.time_s>2e-6 & x.time_s<2*period-1e-12));
 [x,zout,~]=event_case('trip_zero',[0 b;period high;70e-6 high],config,45e-6,7.3e-6);
 assert(~any(x.kind==10 & x.data==1 & x.time_s>=period-1e-12));
 assert(~any(zout.trace.signals.values(zout.trace.time>=period,1)));
+held=b;held(5)=1;heldhigh=held;heldhigh(3)=3.3;
+[x,~,~]=event_case('held_clear',[0 held;1.234567e-6 heldhigh;8e-6 held;70e-6 held],config,45e-6,7.3e-6);
+assert(~any(x.kind==12 & x.time_s>1e-6));
+unsafe=b;unsafe(4)=0;unsafehigh=unsafe;unsafehigh(3)=3.3;
+unsafeclr=unsafe;unsafeclr(5)=1;reenable=unsafeclr;reenable(4)=1;
+[x,~,~]=event_case('unsafe_clear',[0 unsafe;1e-6 unsafehigh;2e-6 unsafe;3e-6 unsafeclr;8e-6 reenable;70e-6 reenable],config,45e-6,7.3e-6);
+assert(~any(x.kind==12));assert(~any(x.kind==10 & x.data==1));
+assert(any(x.kind==11 & abs(x.time_s-1e-6)<1e-12));
 f=figure('Visible','off');t=tripout.trace.time;y=tripout.trace.signals.values;
 stairs(t*1e6,y(:,[1 5]));xlabel('time (us)');legend('PWM','Trip latch');grid on;
 saveas(f,fullfile(folder,'trip.png'));close(f);

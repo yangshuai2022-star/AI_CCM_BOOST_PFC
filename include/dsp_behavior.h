@@ -2,12 +2,13 @@
 #define DSP_BEHAVIOR_H
 #include <stdbool.h>
 #include <stdint.h>
+#include "pfc_control.h"
 /* Host only; floating ns preserves off-clock Trip. TBCLK timers remain on
  * the clock grid. Caller visits each deadline. No allocation or callbacks. */
 #define DSP_TIME_NEVER (1.0e100)
 #define DSP_EVENT_CAPACITY (32U)
 #define DSP_INPUT_WIDTH (8)
-#define DSP_OUTPUT_WIDTH (16)
+#define DSP_OUTPUT_WIDTH (22)
 #define DSP_ADC_CH_COUNT (3U)
 #define DSP_ADC_MAX_CODE (4095U)
 typedef enum {
@@ -25,6 +26,8 @@ typedef struct {
     uint32_t acq_ns, conversion_ns, isr_latency_ns, isr_execution_ns;
     uint8_t oversampling;
     double adc_vref_v;
+    bool control_enabled;
+    pfc_config_t control;
 } dsp_config_t;
 typedef struct {
     dsp_config_t cfg;
@@ -40,6 +43,7 @@ typedef struct {
     uint32_t adc_sum, adc_overrun_count, isr_overrun_count, isr_count;
     uint8_t adc_channel, adc_sample_index, adc_phase;
     bool isr_pending, isr_running;
+    pfc_control_t control;
     dsp_event_t events[DSP_EVENT_CAPACITY]; uint32_t event_size;
 } dsp_model_t;
 int dsp_init(dsp_model_t *m, const dsp_config_t *cfg);

@@ -1,0 +1,3 @@
+Row,committed_events,solver_times,wall_s
+analytic_events,25,25,0.0690467
+10ns_short_reference,NaN,6001,0.0498899

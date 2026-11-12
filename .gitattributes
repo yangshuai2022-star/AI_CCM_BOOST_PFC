@@ -1,3 +1,5 @@
 *.csv text eol=lf
 *.slx binary
 *.png binary
+# Preserve MATLAB's verbatim display-table padding in acceptance diaries.
+evidence/**/matlab.txt -whitespace

@@ -1,0 +1,91 @@
+9.11.0.1769968 (R2021b)
+MEX 配置为使用 'MinGW64 Compiler (C)' 以进行 C 语言编译。
+使用 'MinGW64 Compiler (C)' 编译。
+MEX 已成功完成。
+voltage_1: 4e-05s simulated, 127 solver points, 0.071s wall
+voltage_2: 4e-05s simulated, 127 solver points, 0.048s wall
+voltage_3: 4e-05s simulated, 127 solver points, 0.044s wall
+voltage_4: 4e-05s simulated, 127 solver points, 0.046s wall
+current_1: 4e-05s simulated, 55 solver points, 0.041s wall
+current_2: 4e-05s simulated, 125 solver points, 0.039s wall
+current_3: 4e-05s simulated, 127 solver points, 0.040s wall
+current_4: 4e-05s simulated, 128 solver points, 0.040s wall
+    channel_kind    physical_input    expected_pin_V    measured_pin_V    ADC_code    expected_code    decoded_physical
+    ____________    ______________    ______________    ______________    ________    _____________    ________________
+
+         1                   0                 0                 0             0             0                   0     
+         1              311.13             2.139             2.139          2655          2655              311.13     
+         1                 400              2.75              2.75          3413          3413              399.96     
+         1                 480               3.3               3.3          4095          4095              479.88     
+         2                   0                 0                 0             0             0                   0     
+         2                   1              0.05              0.05            62            62             0.99902     
+         2                  15              0.75              0.75           931           931              15.001     
+         2              21.213            1.0607            1.0607          1317          1317              21.221     
+
+bandwidth: 5e-06s simulated, 257 solver points, 0.041s wall
+500kHz amplifier PASS: measured tau 318.358072ns, fc 499924.321998Hz; nominal 318.309886ns.
+analog_trip: 2e-06s simulated, 1021 solver points, 0.049s wall
+Analog comparator PASS: raw crossing 969.504793889ns, OC HIGH 999.504793889ns, propagation 30.000000000ns; Trip and PWM low at OC event (<=1ps).
+                            committed_events    solver_times     wall_s 
+                            ________________    ____________    ________
+
+    analytic_events                25                 25        0.069047
+    10ns_short_reference          NaN               6001         0.04989
+
+Control reset PASS: Trip during running ISR discards precomputed CMPA, exit writes zero; explicit rearm cannot load stale duty.
+Latest specification: 3300W, 220uH, 1200uF, target 66kHz, actual 66006.600660066Hz, TBPRD=1514.
+pfc_steady: 0.5s simulated, 1350973 solver points, 13.018s wall
+                         vbus_mean_V: 400.8015
+                           vbus_pp_V: 20.9274
+                         input_rms_A: 15.1706
+                       input_power_W: 3.3118e+03
+                      output_power_W: 3.3143e+03
+                            PF_total: 0.9923
+           THD_2_to_40_cycle_average: 0.0522
+                           peak_IL_A: 22.7345
+                max_cycle_ripple_App: 7.1168
+    CCM_fraction_excluding_line_zero: 1
+                              events: 792092
+                        solver_times: 1350973
+                  mean_solver_step_s: 3.7010e-07
+                   max_solver_step_s: 5.0000e-06
+                         ADC_overrun: 0
+                         ISR_overrun: 0
+
+pfc_load_step: 1s simulated, 2700302 solver points, 25.603s wall
+                         vbus_mean_V: 400.9167
+                           vbus_pp_V: 20.9564
+                         input_rms_A: 15.1775
+                       input_power_W: 3.3133e+03
+                      output_power_W: 3.3163e+03
+                            PF_total: 0.9923
+           THD_2_to_40_cycle_average: 0.0521
+                           peak_IL_A: 22.7480
+                max_cycle_ripple_App: 7.1200
+    CCM_fraction_excluding_line_zero: 1
+                              events: 1584164
+                        solver_times: 2700302
+                  mean_solver_step_s: 3.7033e-07
+                   max_solver_step_s: 5.0000e-06
+                         ADC_overrun: 0
+                         ISR_overrun: 0
+
+                         vbus_mean_V: 400.8699
+                           vbus_pp_V: 15.4536
+                         input_rms_A: 11.4434
+                       input_power_W: 2.4829e+03
+                      output_power_W: 2.4862e+03
+                            PF_total: 0.9862
+           THD_2_to_40_cycle_average: 0.0719
+                           peak_IL_A: 17.3975
+                max_cycle_ripple_App: 7.0587
+    CCM_fraction_excluding_line_zero: 1
+                              events: 1584164
+                        solver_times: 2700302
+                  mean_solver_step_s: 3.7033e-07
+                   max_solver_step_s: 5.0000e-06
+                         ADC_overrun: 0
+                         ISR_overrun: 0
+
+pfc_trip: 0.04s simulated, 45989 solver points, 0.511s wall
+M3 PASS: analog calibration/bandwidth/30ns comparator; 3.3kW steady loop; 3300->2475W load step; physical-current Trip/latch; event efficiency.

@@ -8,7 +8,9 @@ slprj/
 *.asv
 *.log
 *.csv
+!evidence/**/*.csv
 .DS_Store
 evidence/**/*_trace.mat
 evidence/**/selected_traces.mat
-!evidence/**/*.csv
+evidence/M3/pfc_*_events.csv
+evidence/M3/*_trace.mat

@@ -1,0 +1,1 @@
+{"line_cycle_mean_peak_V":425.04805768192671,"line_cycle_mean_min_V":400.80181658737467,"recovery_to_5V_band_s":0.28,"time_resolution_s":0.02,"criterion":"all subsequent complete line-period means within 400 +/-5V"}

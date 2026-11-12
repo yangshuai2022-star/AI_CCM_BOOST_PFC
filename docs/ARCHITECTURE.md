@@ -35,7 +35,7 @@ Root matching tolerance is 0.1 ps; timers must never fire early. Only an exact
 scheduled sample hit is mapped back to its canonical ns deadline. Next-hit
 callback predicts from a local copy because MATLAB calls it before Update.
 
-The timer ZC integration must pass MATLAB tests before use. Public API sources:
+The event-hit integration is covered by MATLAB tests. Public API sources:
 [MathWorks mdlZeroCrossings](https://www.mathworks.com/help/simulink/sfg/mdlzerocrossings.html),
 [S-Function callback phases](https://www.mathworks.com/help/simulink/sfg/s-function-callback-methods.html).
 The Issue permits experimentally equivalent event hits. See MathWorks'
@@ -47,9 +47,9 @@ Input `[IL_pin_V, VBUS_pin_V, OC_logic_V, enable, clear, CMPA_ticks,
 command_sequence, VIN_pin_V]`. Voltage/current physical scaling belongs to
 Simulink. OC high threshold here is the digital 1.65 V logic threshold, not
 an analog current-comparator threshold. Outputs: PWM, TBCTR, CMPA Active,
-Shadow, Trip, SOC count, event count; remaining fields reserved for M2/M3.
+Shadow, Trip, SOC count, event count; later fields expose ADC/ISR/control state.
 
-CSV kinds 0..17 are defined in `dsp_behavior.h`. Each row is a committed
+CSV kinds 0..18 are defined in `dsp_behavior.h`. Each row is a committed
 event, followed by the final state at that accepted solver step. For several
 events at the same timestamp, the `kind/data` sequence gives event ordering;
 state columns show the final step snapshot, not intermediate transient state.
@@ -104,3 +104,97 @@ unity gain, 500kHz bandwidth, configurable zero offset. Comparator propagation
 30ns, input error +1mV, HIGH=3.3V. These are user-specified teaching parameters,
 not measured hardware characteristics. The 50mOhm scaling is not implicitly
 inserted as a dissipative component in the plant.
+
+## M3 power and analog circuit
+
+The Simulink model `ccm_boost_pfc.slx` uses explicit switched equations, not an
+averaged-duty shortcut or a C/Python plant. With gate g=0/1:
+
+```
+vrect = abs(sqrt(2)*220*sin(2*pi*50*t))
+diL/dt = (vrect - (1-g)*vbus)/220uH
+dvbus/dt = ((1-g)*iL - Gload*vbus)/1200uF
+```
+
+Limited continuous integrators enforce iL>=0 and vbus>=0; at zero current a
+negative inductor derivative is blocked (ideal diode DCM behavior). Ideal
+switch/rectifier, no parasitic loss or EMI filter. The virtual bus starts
+precharged at 400V, iL=0. A resistor load uses G=3300/400^2 S (48.48485 ohm),
+then 2475/400^2 S (64.64646 ohm) at 0.5s; these are nominal powers at 400V,
+not a constant-power load. Actual output power is measured.
+
+Analog_frontend is a separate Simulink subsystem reused by calibration tests:
+gain 0.05 V/A -> continuous state in volts with
+`dx/dt=(0.05*iL-x)/tau`, tau=1/(2*pi*500kHz) -> configurable offset.
+Both voltage channels use gain 3.3/480. AC sampling is explicitly **rectified
+nonnegative voltage**, so no negative AC voltage enters the unipolar ADC.
+Current offset is zero for the accepted loop; nonzero settings inject sensor
+bias and are not automatically calibrated away by the controller.
+
+Comparator uses a +1mV input error, 30ns transport delay of the continuous
+input, relational threshold, double conversion and 3.3V logic output.
+For a memoryless comparator a fixed delay before comparison implements the
+same threshold-transition delay as delaying the comparator output. This
+avoids assuming that Transport Delay schedules a discontinuous digital edge;
+the downstream comparison supplies the continuous ZC. Delay is independently
+measured using raw/delayed comparator taps. Default threshold 2V (39.98A with
++1mV error) is a **teaching choice**, not a user-approved hardware trip limit.
+The full-plant Trip test lowers it to 0.7V to force a genuine iL-driven event.
+The digital C code receives only the resulting logic level.
+
+Ode23tb uses variable steps, max 5us, RelTol=2e-5, AbsTol=1e-7 in physical
+states (A/V), explicit ZCThreshold=1e-12. The isolated analog tests use ode45
+with tighter tolerances. No whole-system 10ns step is used. Artificial step
+stimuli use duplicate left/right timestamps with interpolation and source ZC
+enabled, so even a short pulse is advertised to the solver. See
+[MathWorks input discontinuities](https://www.mathworks.com/help/simulink/slref/fromworkspace.html)
+and [ZC signal threshold](https://www.mathworks.com/help/simulink/gui/signalthreshold.html).
+
+## M3 independent C99 AVG control contract
+
+`pfc_control.c` contains only decoding/control math. It does not include
+`dsp_behavior.h` or any Simulink/TI API. The peripheral ISR directly calls this
+separate module (no indirect callback) with a frozen ADC image and permit.
+Nominal period Ts=15.15us; overloaded scheduling is diagnostic, not a validated
+variable-rate control mode. All control math is host double, with no target
+timing or float32 equivalence claim.
+
+The DCL catalog's previous-cycle trapezoidal PI was reviewed but **not copied**
+from its private lineage. This project uses its own forward-Euler conditional
+integration law, explicitly a different variant:
+
+```
+Icand = I + Ki*Ts*error
+raw = feedforward + Kp*error + Icand
+accept Icand if raw is within limits or error drives saturated output inward
+I = clamp(I, lower-feedforward, upper-feedforward)
+output = clamp(feedforward + Kp*error + I, lower, upper)
+```
+
+Outer loop: a 20Hz discrete first-order filtered bus voltage drives PI with
+Kp=20 W/V, Ki=200 W/(V*s), limits 0..5000W. Initial power integrator=3300W;
+this initialization helps the precharged nominal-load demonstration. Current
+reference is `Pcmd*Vrect_measured / (220Vrms)^2`; RMS is the configured source
+value, not an online RMS estimator. Current PI uses Kp=.008 duty/A,
+Ki=20 duty/(A*s), feedforward `1-Vrect/Vbus`, duty .02.. .97. Rounding converts
+duty*(TBPRD+1) to CMPA. ISR exit is the sole normal Shadow publish point;
+ZERO is the only Active load point. Kp/Ki were exercised in the actual loop.
+
+The ADC-to-physical gains are provided by MATLAB initialization, not hidden
+analog circuits inside the peripheral code. The sample is taken near PWM
+ZERO, not at the cycle-average current; no ripple estimator is inserted.
+Measured PF/THD include the consequence of this sampling choice.
+
+Fault/disable resets controller integrators, telemetry, staged CMPA and Shadow
+to zero; an ISR computed before Trip cannot publish its old nonzero duty at
+exit. Explicit eligible clear permits restart at ZERO with zero old duty;
+fresh control arrives through the normal ADC/ISR path. Invalid ADC code,
+bus<50V or bus>=479.8V returns zero controller duty and resets state. Nonfinite
+pins/configuration fail the host simulation. No independent firmware sensor
+diagnostic or hardware protection guarantee is implied.
+
+The 24-field config extends the M2 vector with: control enable, current Kp/Ki,
+voltage Kp/Ki, A/count, V/count, Vrms, target Vbus, initial W, max W, min/max
+duty, voltage-filter Hz. Output fields 17..22 are decoded IL/Vbus/Vin,
+current reference A, power command W and duty. Registers/AQ/Trip remain solely
+owned by the peripheral model; physical/analog states remain in Simulink.

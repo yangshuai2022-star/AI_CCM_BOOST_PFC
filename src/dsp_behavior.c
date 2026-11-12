@@ -74,15 +74,20 @@ static void handle_isr_entry(dsp_model_t *m,const double *u)
     m->isr_pending=false; m->isr_running=true; m->isr_count++;
     m->isr_ready_ns=DSP_TIME_NEVER;
     log_event(m,DSP_EVENT_ISR_ENTRY,m->pending_adc[0]);
-    /* M2 timing fixture: lock the explicit command at entry, publish at exit. */
-    m->staged_cmpa=(uint16_t)u[5];
+    if (m->cfg.control_enabled) {
+        double duty=pfc_control_step(&m->control,m->pending_adc,
+            m->enable_requested && !m->trip_latched && !m->comparator_high);
+        m->staged_cmpa=(uint16_t)floor(duty*((double)m->cfg.tbprd+1.0)+0.5);
+        if (m->staged_cmpa>m->cfg.tbprd) { m->staged_cmpa=m->cfg.tbprd; }
+    } else { m->staged_cmpa=(uint16_t)u[5]; }
     log_event(m,DSP_EVENT_CONTROL,m->staged_cmpa);
     m->isr_finish_ns=m->now_ns+m->cfg.isr_execution_ns;
 }
 static void handle_isr_exit(dsp_model_t *m)
 {
     m->isr_running=false; m->isr_finish_ns=DSP_TIME_NEVER;
-    m->cmpa_shadow=m->staged_cmpa; m->cmpa_shadow_pending=true;
+    m->cmpa_shadow=(m->cfg.control_enabled && (m->trip_latched || !m->enable_requested))?0U:m->staged_cmpa;
+    m->cmpa_shadow_pending=true;
     log_event(m,DSP_EVENT_SHADOW_WRITE,m->cmpa_shadow);
     log_event(m,DSP_EVENT_ISR_EXIT,0U);
 }
@@ -117,6 +122,7 @@ int dsp_init(dsp_model_t *m,const dsp_config_t *cfg)
     m->cmpa_active=cfg->initial_cmpa; m->cmpa_shadow=cfg->initial_cmpa;
     m->next_cmpa_ns=DSP_TIME_NEVER; m->next_prd_ns=DSP_TIME_NEVER;
     m->adc_event_ns=DSP_TIME_NEVER; m->isr_ready_ns=DSP_TIME_NEVER; m->isr_finish_ns=DSP_TIME_NEVER;
+    if (cfg->control_enabled && (!cfg->adc_enabled || pfc_control_init(&m->control,&cfg->control)!=0)) { return -1; }
     return 0;
 }
 double dsp_next_event_ns(const dsp_model_t *m)
@@ -143,6 +149,10 @@ int dsp_step(dsp_model_t *m,double t,const double u[DSP_INPUT_WIDTH])
         if (!m->trip_latched) { m->trip_latched=true; log_event(m,DSP_EVENT_TRIP,1U); }
     }
     if (!m->enable_requested) { m->pwm_enabled=false; }
+    if (m->cfg.control_enabled && (m->trip_latched || !m->enable_requested)) {
+        pfc_control_reset(&m->control);m->staged_cmpa=0U;
+        m->cmpa_shadow=0U;m->cmpa_shadow_pending=true;
+    }
     refresh_pwm(m);
     if (u[4]!=0.0 && !m->clear_previous && !m->comparator_high && m->enable_requested) { m->trip_clear_requested=true; }
     m->clear_previous=u[4]!=0.0;
@@ -173,4 +183,6 @@ void dsp_outputs(const dsp_model_t *m,double t,double y[DSP_OUTPUT_WIDTH])
     y[10]=m->isr_running?1.0:0.0; y[11]=m->isr_count;
     y[12]=m->adc_overrun_count; y[13]=m->isr_overrun_count;
     y[14]=m->isr_pending?1.0:0.0; y[15]=m->adc_phase;
+    y[16]=m->control.il_a; y[17]=m->control.vbus_v; y[18]=m->control.vin_v;
+    y[19]=m->control.current_ref_a; y[20]=m->control.power_w; y[21]=m->control.duty;
 }

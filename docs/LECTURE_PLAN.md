@@ -16,7 +16,9 @@
 
 在控制算法不变的条件下，修改 ISR 执行时间，让 CMPA 写 Shadow 的时间从 ZERO 前移动到 ZERO 后，观察下一周 PWM 生效时间的差别。让学生推导并验证实际延迟，而不是直接提供结论。
 
-进阶版在 Simulink 接入 CCM Boost PFC，测量 PF、THD、母线纹波与阶跃响应；这一步尚待实装及验证，不能作为已完成成果宣传。
+进阶实验已通过本机 MATLAB R2021b / Simulink 验证：运行 `addpath('matlab'); run_all`。
+当前参数为 3.3 kW / 66 kHz 目标 / 220 µH / 1200 µF；PF、THD、母线纹波、
+阶跃恢复与适用边界引用 `docs/VALIDATION.md`，课堂演示使用 `evidence/M3` 波形。
 
 ## 安全与可信度
 
