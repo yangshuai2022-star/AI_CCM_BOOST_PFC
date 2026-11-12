@@ -32,6 +32,25 @@ The next-hit callback is called before Update, verified by the initial
 `next hit 0 must be greater than 0` failure and fixed with local prediction.
 MEX and final simulation have zero compiler/model warnings.
 
-M2 and M3 remain pending until MATLAB acceptance passes at each stage.
+M2 [VERIFIED]: `addpath('matlab'); validate_m2` passed in the same MATLAB
+environment after M1 regression. Evidence: `evidence/M2/matlab.txt`, scenario
+CSVs and `adc_isr.png`. Tests assert the complete 80/330/410/660/740/990/
+1110/1910ns acquisition/EOC/ISR chain; pin changes 0.8->2.8V during conversion
+do not alter the held 0.8V result. N=4 independently acquired IL codes
+[124,372,621,869] average to 497, rather than replicating one sample.
+
+All channels pass negative/zero/midscale/Vref/overrange clipping tests.
+ISR writes at 15140/15150/15160ns demonstrate before/at/after ZERO loading.
+An intentionally busy ADC drops SOCA with explicit counts. A 50us ISR fills
+one pending slot, reports subsequent loss, and later consumes the preserved
+0.4V image rather than overwriting it with 0.8V. Trip at 31333.333ns forces
+PWM low while the ISR is still executing and remains latched after release.
+MATLAB actual outputs confirm ISR-running/pending states.
+
+Line-ending handling: event logs are now opened in binary write mode to
+emit LF on Windows; `.gitattributes` normalizes only CSVs. The M1 acceptance
+data values are unchanged by this encoding correction.
+
+M3 remains pending until complete MATLAB closed-loop acceptance.
 Real MCU timing, polarity, register equivalence and physical hardware remain
 UNKNOWN. This repository is a virtual teaching experiment only.

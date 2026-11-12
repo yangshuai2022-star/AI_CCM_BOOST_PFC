@@ -21,6 +21,71 @@ static void refresh_pwm(dsp_model_t *m)
         m->pwm_out=output; log_event(m,DSP_EVENT_PWM_OUTPUT,output?1U:0U);
     }
 }
+static void begin_acquisition(dsp_model_t *m)
+{
+    m->adc_phase=1U; m->adc_event_ns=m->now_ns+m->cfg.acq_ns;
+    log_event(m,DSP_EVENT_ACQ_START,((uint32_t)m->adc_channel<<16U)|m->adc_sample_index);
+}
+static void issue_soca(dsp_model_t *m)
+{
+    m->soc_count++; log_event(m,DSP_EVENT_SOCA,0U);
+    if (!m->cfg.adc_enabled) { return; }
+    if (m->adc_phase!=0U) {
+        m->adc_overrun_count++; log_event(m,DSP_EVENT_ADC_OVERRUN,m->adc_overrun_count); return;
+    }
+    m->adc_channel=0U; m->adc_sample_index=0U; m->adc_sum=0U;
+    begin_acquisition(m);
+}
+static uint16_t quantize_12bit(double pin,double vref)
+{
+    double code=floor(pin*4096.0/vref+0.5);
+    if (code<=0.0) { return 0U; }
+    if (code>=4095.0) { return 4095U; }
+    return (uint16_t)code;
+}
+static void handle_adc(dsp_model_t *m,const double *u)
+{
+    static const unsigned pin_index[DSP_ADC_CH_COUNT]={0U,1U,7U};
+    uint32_t tag=(uint32_t)m->adc_channel<<16U;
+    if (m->adc_phase==1U) {
+        m->adc_hold=quantize_12bit(u[pin_index[m->adc_channel]],m->cfg.adc_vref_v);
+        log_event(m,DSP_EVENT_ACQ_END,tag|m->adc_hold);
+        m->adc_phase=2U; m->adc_event_ns=m->now_ns+m->cfg.conversion_ns; return;
+    }
+    m->adc_sum+=m->adc_hold; log_event(m,DSP_EVENT_EOC,tag|m->adc_hold);
+    m->adc_sample_index++;
+    if (m->adc_sample_index<m->cfg.oversampling) { begin_acquisition(m); return; }
+    m->adc_result[m->adc_channel]=(uint16_t)((m->adc_sum+m->cfg.oversampling/2U)/m->cfg.oversampling);
+    log_event(m,DSP_EVENT_ADC_RESULT,tag|m->adc_result[m->adc_channel]);
+    m->adc_channel++;
+    if (m->adc_channel<DSP_ADC_CH_COUNT) {
+        m->adc_sum=0U; m->adc_sample_index=0U; begin_acquisition(m); return;
+    }
+    m->adc_phase=0U; m->adc_event_ns=DSP_TIME_NEVER;
+    log_event(m,DSP_EVENT_ADC_INTERRUPT,0U);
+    if (m->isr_pending) {
+        m->isr_overrun_count++; log_event(m,DSP_EVENT_ISR_OVERRUN,m->isr_overrun_count); return;
+    }
+    memcpy(m->pending_adc,m->adc_result,sizeof(m->pending_adc));
+    m->isr_pending=true; m->isr_ready_ns=m->now_ns+m->cfg.isr_latency_ns;
+}
+static void handle_isr_entry(dsp_model_t *m,const double *u)
+{
+    m->isr_pending=false; m->isr_running=true; m->isr_count++;
+    m->isr_ready_ns=DSP_TIME_NEVER;
+    log_event(m,DSP_EVENT_ISR_ENTRY,m->pending_adc[0]);
+    /* M2 timing fixture: lock the explicit command at entry, publish at exit. */
+    m->staged_cmpa=(uint16_t)u[5];
+    log_event(m,DSP_EVENT_CONTROL,m->staged_cmpa);
+    m->isr_finish_ns=m->now_ns+m->cfg.isr_execution_ns;
+}
+static void handle_isr_exit(dsp_model_t *m)
+{
+    m->isr_running=false; m->isr_finish_ns=DSP_TIME_NEVER;
+    m->cmpa_shadow=m->staged_cmpa; m->cmpa_shadow_pending=true;
+    log_event(m,DSP_EVENT_SHADOW_WRITE,m->cmpa_shadow);
+    log_event(m,DSP_EVENT_ISR_EXIT,0U);
+}
 static void handle_zero(dsp_model_t *m)
 {
     double period=((double)m->cfg.tbprd+1.0)*m->cfg.tbclk_ns;
@@ -40,19 +105,27 @@ static void handle_zero(dsp_model_t *m)
     /* CMPA clear wins at ZERO when CMPA=0: no zero-width pulse. */
     if (m->cmpa_active==0U) { log_event(m,DSP_EVENT_CMPA,0U); }
     else { m->next_cmpa_ns=m->last_zero_ns+(double)m->cmpa_active*m->cfg.tbclk_ns; }
-    refresh_pwm(m); m->soc_count++; log_event(m,DSP_EVENT_SOCA,0U);
+    refresh_pwm(m); issue_soca(m);
 }
 int dsp_init(dsp_model_t *m,const dsp_config_t *cfg)
 {
     if (m==NULL || cfg==NULL || cfg->tbclk_ns==0U || cfg->tbprd<2U || cfg->initial_cmpa>cfg->tbprd) { return -1; }
+    if (cfg->adc_enabled && (cfg->acq_ns==0U || cfg->conversion_ns==0U ||
+        cfg->oversampling<1U || cfg->oversampling>16U || cfg->isr_execution_ns==0U ||
+        !isfinite(cfg->adc_vref_v) || cfg->adc_vref_v<=0.0)) { return -1; }
     memset(m,0,sizeof(*m)); m->cfg=*cfg; m->now_ns=-1.0;
     m->cmpa_active=cfg->initial_cmpa; m->cmpa_shadow=cfg->initial_cmpa;
     m->next_cmpa_ns=DSP_TIME_NEVER; m->next_prd_ns=DSP_TIME_NEVER;
+    m->adc_event_ns=DSP_TIME_NEVER; m->isr_ready_ns=DSP_TIME_NEVER; m->isr_finish_ns=DSP_TIME_NEVER;
     return 0;
 }
 double dsp_next_event_ns(const dsp_model_t *m)
 {
-    return earliest(m->next_zero_ns,earliest(m->next_cmpa_ns,m->next_prd_ns));
+    double next=earliest(m->next_zero_ns,earliest(m->next_cmpa_ns,m->next_prd_ns));
+    next=earliest(next,m->adc_event_ns);
+    if (m->isr_running) { next=earliest(next,m->isr_finish_ns); }
+    else if (m->isr_pending) { next=earliest(next,fmax(m->now_ns,m->isr_ready_ns)); }
+    return next;
 }
 int dsp_step(dsp_model_t *m,double t,const double u[DSP_INPUT_WIDTH])
 {
@@ -79,7 +152,10 @@ int dsp_step(dsp_model_t *m,double t,const double u[DSP_INPUT_WIDTH])
         log_event(m,DSP_EVENT_CMPA,m->cmpa_active); refresh_pwm(m);
     }
     if (due(t,m->next_prd_ns)) { m->next_prd_ns=DSP_TIME_NEVER; log_event(m,DSP_EVENT_PRD,m->cfg.tbprd); }
-    if (!m->command_seen || (uint32_t)u[6]!=m->command_seq) {
+    if (due(t,m->adc_event_ns)) { handle_adc(m,u); }
+    if (m->isr_running && due(t,m->isr_finish_ns)) { handle_isr_exit(m); }
+    if (m->isr_pending && !m->isr_running && t>=m->isr_ready_ns) { handle_isr_entry(m,u); }
+    if (!m->cfg.adc_enabled && (!m->command_seen || (uint32_t)u[6]!=m->command_seq)) {
         m->command_seen=true; m->command_seq=(uint32_t)u[6];
         m->cmpa_shadow=(uint16_t)u[5]; m->cmpa_shadow_pending=true;
         log_event(m,DSP_EVENT_SHADOW_WRITE,m->cmpa_shadow);
@@ -93,4 +169,8 @@ void dsp_outputs(const dsp_model_t *m,double t,double y[DSP_OUTPUT_WIDTH])
     y[1]=t<0.0?0.0:floor(fmax(0.0,t-m->last_zero_ns)/m->cfg.tbclk_ns);
     y[2]=m->cmpa_active; y[3]=m->cmpa_shadow; y[4]=m->trip_latched?1.0:0.0;
     y[5]=m->soc_count; y[6]=m->event_count;
+    y[7]=m->adc_result[0]; y[8]=m->adc_result[1]; y[9]=m->adc_result[2];
+    y[10]=m->isr_running?1.0:0.0; y[11]=m->isr_count;
+    y[12]=m->adc_overrun_count; y[13]=m->isr_overrun_count;
+    y[14]=m->isr_pending?1.0:0.0; y[15]=m->adc_phase;
 }

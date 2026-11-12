@@ -10,4 +10,5 @@ slprj/
 *.csv
 .DS_Store
 evidence/**/*_trace.mat
+evidence/**/selected_traces.mat
 !evidence/**/*.csv

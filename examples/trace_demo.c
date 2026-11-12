@@ -3,7 +3,7 @@
 int main(void)
 {
     dsp_model_t m;
-    dsp_config_t cfg={10U,1514U,1000U};
+    dsp_config_t cfg={.tbclk_ns=10U,.tbprd=1514U,.initial_cmpa=1000U};
     double u[DSP_INPUT_WIDTH]={0,0,0,1,0,600,0,0};
     unsigned i;
     if (dsp_init(&m,&cfg)!=0) { return 1; }

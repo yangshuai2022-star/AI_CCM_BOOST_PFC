@@ -22,5 +22,5 @@ MEX 配置为使用 'MinGW64 Compiler (C)' 以进行 C 语言编译。
 使用 'MinGW64 Compiler (C)' 编译。
 MEX 已成功完成。
 PWM: TBPRD=1514, period=1515 ticks, f=66006.600660066 Hz, error=0.010001%
-count: 25 committed events, 25 solver times, 0.752210 s wall; 60us / 10ns reference: 6000 ticks
+count: 25 committed events, 25 solver times, 0.616728 s wall; 60us / 10ns reference: 6000 ticks
 M1 PASS: count/PRD/CMPA/SOCA; shadow before/at/after ZERO; CMPA bounds; fractional-ns trip/latch/rearm/priority.

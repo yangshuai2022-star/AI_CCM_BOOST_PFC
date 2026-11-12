@@ -1,0 +1,7 @@
+9.11.0.1769968 (R2021b)
+MEX 配置为使用 'MinGW64 Compiler (C)' 以进行 C 语言编译。
+使用 'MinGW64 Compiler (C)' 编译。
+MEX 已成功完成。
+S&H PASS: 0.8V at 80ns retained through 330ns EOC despite 2.8V input at 120ns. ISR entry=1110ns, write/exit=1910ns.
+N=4 PASS: IL codes [124 372 621 869], averaged=497 at 1320ns; each acquisition has distinct input.
+M2 PASS: ACQ/EOC/12bit/saturation; independent N=4; IRQ latency/execution; before/at/after ZERO; ADC/IRQ overrun; pending snapshot; Trip while ISR blocked.

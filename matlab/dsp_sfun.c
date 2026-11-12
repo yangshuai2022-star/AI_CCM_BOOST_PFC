@@ -18,8 +18,10 @@ static void mdlInitializeSizes(SimStruct *S)
     ssSetNumSFcnParams(S,2);
     if (ssGetNumSFcnParams(S)!=ssGetSFcnParamsCount(S)) { return; }
     ssSetSFcnParamTunable(S,0,0); ssSetSFcnParamTunable(S,1,0);
-    if (!mxIsDouble(ssGetSFcnParam(S,0)) || mxGetNumberOfElements(ssGetSFcnParam(S,0))!=3 || !mxIsChar(ssGetSFcnParam(S,1))) {
-        ssSetErrorStatus(S,"Expected config[3] and log filename."); return;
+    if (!mxIsDouble(ssGetSFcnParam(S,0)) || mxIsComplex(ssGetSFcnParam(S,0)) ||
+        (mxGetNumberOfElements(ssGetSFcnParam(S,0))!=3 && mxGetNumberOfElements(ssGetSFcnParam(S,0))!=10) ||
+        !mxIsChar(ssGetSFcnParam(S,1))) {
+        ssSetErrorStatus(S,"Expected PWM config[3] or ADC config[10] and log filename."); return;
     }
     ssSetNumContStates(S,0); ssSetNumDiscStates(S,1);
     if (!ssSetNumInputPorts(S,1)) { return; }
@@ -52,7 +54,7 @@ static void mdlStart(SimStruct *S)
 {
     char name[1024]; FILE *log;
     if (mxGetString(ssGetSFcnParam(S,1),name,sizeof(name))!=0) { ssSetErrorStatus(S,"Log path too long."); return; }
-    log=fopen(name,"w"); ssSetPWorkValue(S,0,log);
+    log=fopen(name,"wb"); ssSetPWorkValue(S,0,log);
     if (log==NULL) { ssSetErrorStatus(S,"Cannot open event log."); return; }
     fprintf(log,"time_s,kind,data,pwm,active,shadow,trip\n");
 }
@@ -60,10 +62,23 @@ static void mdlStart(SimStruct *S)
 static void mdlInitializeConditions(SimStruct *S)
 {
     dsp_model_t m; dsp_config_t cfg; const double *p=mxGetPr(ssGetSFcnParam(S,0));
+    memset(&cfg,0,sizeof(cfg));
     if (!mxIsFinite(p[0]) || p[0]<1 || p[0]>1000000 || floor(p[0])!=p[0] ||
         !mxIsFinite(p[1]) || p[1]<2 || p[1]>65535 || floor(p[1])!=p[1] ||
         !mxIsFinite(p[2]) || p[2]<0 || p[2]>p[1] || floor(p[2])!=p[2]) { ssSetErrorStatus(S,"Invalid PWM configuration."); return; }
     cfg.tbclk_ns=(uint32_t)p[0]; cfg.tbprd=(uint16_t)p[1]; cfg.initial_cmpa=(uint16_t)p[2];
+    if (mxGetNumberOfElements(ssGetSFcnParam(S,0))==10) {
+        unsigned j;
+        for (j=3U;j<9U;j++) {
+            if (!mxIsFinite(p[j]) || p[j]<0 || p[j]>1000000000 || floor(p[j])!=p[j]) {
+                ssSetErrorStatus(S,"ADC/ISR time parameters require nonnegative integer ns."); return;
+            }
+        }
+        if (p[3]>1 || p[6]<1 || p[6]>16) { ssSetErrorStatus(S,"Invalid ADC enable/oversampling."); return; }
+        cfg.adc_enabled=p[3]!=0; cfg.acq_ns=(uint32_t)p[4]; cfg.conversion_ns=(uint32_t)p[5];
+        cfg.oversampling=(uint8_t)p[6]; cfg.isr_latency_ns=(uint32_t)p[7];
+        cfg.isr_execution_ns=(uint32_t)p[8]; cfg.adc_vref_v=p[9];
+    }
     if (dsp_init(&m,&cfg)!=0) { ssSetErrorStatus(S,"Invalid DSP configuration."); return; }
     memcpy(ssGetDWork(S,0),&m,sizeof(m)); ssGetRealDiscStates(S)[0]=-1.0; ssGetModeVector(S)[0]=0;
 }

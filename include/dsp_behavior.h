@@ -8,16 +8,24 @@
 #define DSP_EVENT_CAPACITY (32U)
 #define DSP_INPUT_WIDTH (8)
 #define DSP_OUTPUT_WIDTH (16)
+#define DSP_ADC_CH_COUNT (3U)
+#define DSP_ADC_MAX_CODE (4095U)
 typedef enum {
     DSP_EVENT_ZERO=0, DSP_EVENT_SHADOW_LOAD, DSP_EVENT_CMPA,
     DSP_EVENT_SOCA, DSP_EVENT_ACQ_END, DSP_EVENT_EOC,
     DSP_EVENT_ADC_INTERRUPT, DSP_EVENT_ISR_ENTRY, DSP_EVENT_ISR_EXIT,
     DSP_EVENT_SHADOW_WRITE, DSP_EVENT_PWM_OUTPUT, DSP_EVENT_TRIP,
     DSP_EVENT_TRIP_CLEAR, DSP_EVENT_ADC_OVERRUN, DSP_EVENT_ISR_OVERRUN,
-    DSP_EVENT_PRD, DSP_EVENT_ACQ_START, DSP_EVENT_CONTROL
+    DSP_EVENT_PRD, DSP_EVENT_ACQ_START, DSP_EVENT_CONTROL, DSP_EVENT_ADC_RESULT
 } dsp_event_kind_t;
 typedef struct { dsp_event_kind_t kind; double time_ns; uint32_t data; } dsp_event_t;
-typedef struct { uint32_t tbclk_ns; uint16_t tbprd, initial_cmpa; } dsp_config_t;
+typedef struct {
+    uint32_t tbclk_ns; uint16_t tbprd, initial_cmpa;
+    bool adc_enabled;
+    uint32_t acq_ns, conversion_ns, isr_latency_ns, isr_execution_ns;
+    uint8_t oversampling;
+    double adc_vref_v;
+} dsp_config_t;
 typedef struct {
     dsp_config_t cfg;
     double now_ns, last_zero_ns, next_zero_ns, next_cmpa_ns, next_prd_ns;
@@ -26,6 +34,12 @@ typedef struct {
     bool command_seen, cmpa_shadow_pending, comparator_high;
     bool trip_latched, trip_clear_requested, clear_previous;
     bool enable_requested, pwm_enabled, aq_high, pwm_out;
+    double adc_event_ns, isr_ready_ns, isr_finish_ns;
+    uint16_t adc_hold, adc_result[DSP_ADC_CH_COUNT], pending_adc[DSP_ADC_CH_COUNT];
+    uint16_t staged_cmpa;
+    uint32_t adc_sum, adc_overrun_count, isr_overrun_count, isr_count;
+    uint8_t adc_channel, adc_sample_index, adc_phase;
+    bool isr_pending, isr_running;
     dsp_event_t events[DSP_EVENT_CAPACITY]; uint32_t event_size;
 } dsp_model_t;
 int dsp_init(dsp_model_t *m, const dsp_config_t *cfg);

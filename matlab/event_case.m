@@ -1,5 +1,6 @@
-function [e,out,elapsed]=event_case(name,stimulus,config,stop,maxstep)
-root=fileparts(fileparts(mfilename('fullpath'))); folder=fullfile(root,'evidence','M1');
+function [e,out,elapsed]=event_case(name,stimulus,config,stop,maxstep,stage)
+if nargin<6, stage='M1'; end
+root=fileparts(fileparts(mfilename('fullpath'))); folder=fullfile(root,'evidence',stage);
 if ~isfolder(folder), mkdir(folder); end
 model='dsp_event_test'; event_file=fullfile(folder,[name '_events.csv']);
 input=Simulink.SimulationInput(model);
